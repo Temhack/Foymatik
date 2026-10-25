@@ -43,3 +43,7 @@
  .paper{background:#fff;color:#151515;color-scheme:light}
  .paper input,.paper textarea{background:#fff;color:#111}
 }
+
+/* iPhone: beyaz A4 önizleme sayfası ekrana sığacak şekilde ölçeklenir. Yazdırma boyutu korunur. */
+@media screen{.preview-area{width:100%;min-width:0;max-width:100%;overflow-x:hidden;box-sizing:border-box;padding-left:8px;padding-right:8px}.preview-area .sheets{width:794px!important;max-width:none!important;display:flex;align-items:stretch;margin-left:0!important;margin-right:0!important;transform-origin:top left}.preview-area .paper{width:794px;min-width:794px;box-sizing:border-box;flex-shrink:0}.preview-message{max-width:100%;box-sizing:border-box}}
+@media print{.preview-area .sheets{zoom:1!important}.preview-area{overflow:visible!important}}
