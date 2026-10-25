@@ -54,3 +54,9 @@
 .file-download-bar button{background:#334155;color:#fff;border:1px solid #64748b;padding:12px;border-radius:9px}
 .file-download-bar small{color:#bdcadd;flex-basis:100%}
 @media print{.file-download-bar{display:none!important}}
+
+/* TEK ŞABLON: Önizleme görselleri PDF/PNG üretimindeki aynı Canvas sayfalarından gelir. */
+.preview-area .shared-sheet-preview{width:100%!important;max-width:794px!important;margin:0 auto!important;display:flex!important;flex-direction:column!important;align-items:center!important;gap:14px!important;zoom:1!important;overflow:visible!important;transform:none!important;padding:0!important}
+.preview-area .shared-sheet-page{display:block!important;width:100%!important;max-width:794px!important;height:auto!important;aspect-ratio:794/1123!important;object-fit:contain!important;background:#fff!important;box-shadow:0 4px 16px #0003!important}
+@media(max-width:700px){.preview-area{overflow-x:hidden!important}.preview-area .shared-sheet-preview{max-width:100%!important;padding:0!important}.preview-area .shared-sheet-page{max-width:100%!important}}
+@media print{.shared-sheet-page{width:210mm!important;max-width:none!important;box-shadow:none!important;page-break-after:always!important}}
