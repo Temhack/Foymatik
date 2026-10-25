@@ -3,48 +3,15 @@
 @media(max-width:1100px){.template-grid{grid-template-columns:repeat(2,1fr)}.editor-layout{grid-template-columns:minmax(0,1fr)}.help-panel{position:static;display:none}}@media(max-width:700px){.app{display:block}.sidebar{width:100%;height:61px;position:sticky;z-index:10;padding:8px 13px;flex-direction:row;align-items:center;justify-content:space-between}.brand{padding:0}.brand b{font-size:18px}.brand small{display:none}.brand-icon{width:36px;height:36px}.sidebar nav{display:flex;gap:5px}.sidebar nav button{width:auto;padding:10px 8px;font-size:0;gap:4px}.sidebar nav button svg{width:21px}.sidebar-bottom{display:none}.count{font-size:9px;padding:2px 5px}.topbar{height:45px;padding:0 16px;font-size:11px}.save-pill{font-size:0;padding:8px}.content{padding:35px 16px}.intro h1,.section-heading h1{font-size:26px}.intro p{font-size:13px}.template-grid{gap:11px;margin-top:25px}.template-card{padding:18px 14px;min-height:224px;gap:13px}.template-card strong{font-size:14px}.template-card>span{font-size:11px}.home-bottom{align-items:flex-start;flex-direction:column}.section-heading{align-items:flex-start}.record{gap:9px;flex-wrap:wrap;padding:12px}.record-main{min-width:50%}.record-main small{line-height:1.5}.workspace{padding:25px 13px 114px}.heading-line{margin:14px 0 19px}.heading-line h1{font-size:21px}.heading-line>.secondary{padding:8px}.entry-panel{padding:16px 13px}.two-col{gap:10px}.field input{font-size:13px;padding:7px}.device-head h2{font-size:15px}.measurement-heading>span{display:none}.entry-table-header,.entry-table-row{grid-template-columns:65px 1fr 1fr;gap:6px;padding:7px}.entry-table-row input{padding:7px 5px}.scale-entry .entry-table-header,.scale-entry .entry-table-row{grid-template-columns:45px repeat(3,minmax(0,1fr));gap:4px;padding:6px}.five-inputs{grid-template-columns:repeat(3,minmax(0,1fr))}.entry-bottom{flex-wrap:wrap}.action-bar{left:0;padding:11px 12px;gap:5px;flex-direction:column}.status{font-size:10px}.export-actions{width:100%;gap:6px}.export-actions button{flex:1;padding:10px 7px;font-size:10px;gap:5px}.export-actions svg{width:15px}.paper{flex-shrink:0}.preview-area{margin-left:-13px;margin-right:-13px;padding:0 13px 20px}.toast{bottom:106px;right:13px}.save-pill svg{width:15px}}
 @media print{@page{size:A4 portrait;margin:0}body{background:#fff!important}.sidebar,.topbar,.editor-heading,.editor-tabs,.action-bar,.preview-message,.help-panel,.toast{display:none!important}.app,.main,.workspace,.preview-area,.sheets{display:block!important;margin:0!important;padding:0!important;width:auto!important;max-width:none!important;overflow:visible!important}.paper{width:210mm;min-height:297mm;height:297mm;page-break-after:always;break-after:page;box-shadow:none!important;margin:0!important;padding:12mm 10mm 10mm}.paper:last-child{page-break-after:auto;break-after:auto}}
 
-
-/* FÖYMATİK SİYAH TEMA */
-
-:root {
-  color-scheme: dark;
-  background: #0b0f14;
-  color: #f5f5f5;
-}
-
-body {
-  background: #0b0f14;
-  color: #f5f5f5;
-}
-
-.app {
-  background: #0b0f14;
-}
-
-.sidebar,
-.topbar {
-  background: #111827;
-  color: #ffffff;
-  border-color: #293241;
-}
-
-.main,
-.workspace,
-.editor,
-.preview_area {
-  background: #0b0f14;
-  color: #ffffff;
-}
-
-input,
-select,
-textarea {
-  background: #1f2937;
-  color: #ffffff;
-  border: 1px solid #374151;
-}
-
-input::placeholder,
-textarea::placeholder {
-  color: #9ca3af;
-}
+/* iPhone sayısal klavye korunur; eksi işareti ekran düğmesiyle girilir */
+.signed-input{display:flex;min-width:0;align-items:stretch;gap:4px}
+.signed-input input{min-width:0;width:100%;flex:1}
+.signed-input .minus-key{flex:0 0 34px;padding:0;border:1px solid #a5b7ce;border-radius:9px;background:#e6eef9;color:#173653;font-size:24px;font-weight:700;line-height:1;touch-action:manipulation}
+.quick-ref{padding:13px;margin-top:12px;border:1px solid #b5c9db;border-radius:12px;background:#eff5fb}
+.quick-ref-title{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-weight:700;color:#203651}
+.quick-ref-title small,.quick-ref-help{font-size:12px;color:#50677b}
+.quick-ref-buttons{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+.quick-ref-buttons button{padding:10px 12px;border:1px solid #8cb6e9;border-radius:9px;background:#dbeafe;color:#123f73;font-weight:700;touch-action:manipulation}
+.quick-ref-help{display:block}
+@media(max-width:650px){.signed-input{gap:3px}.signed-input .minus-key{flex-basis:29px;font-size:21px}.signed-input input{padding:7px 3px;font-size:14px}.quick-ref-buttons button{flex:1 1 29%;padding:10px 6px}}
+@media print{.quick-ref{display:none!important}}
