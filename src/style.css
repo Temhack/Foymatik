@@ -47,3 +47,10 @@
 /* iPhone: beyaz A4 önizleme sayfası ekrana sığacak şekilde ölçeklenir. Yazdırma boyutu korunur. */
 @media screen{.preview-area{width:100%;min-width:0;max-width:100%;overflow-x:hidden;box-sizing:border-box;padding-left:8px;padding-right:8px}.preview-area .sheets{width:794px!important;max-width:none!important;display:flex;align-items:stretch;margin-left:0!important;margin-right:0!important;transform-origin:top left}.preview-area .paper{width:794px;min-width:794px;box-sizing:border-box;flex-shrink:0}.preview-message{max-width:100%;box-sizing:border-box}}
 @media print{.preview-area .sheets{zoom:1!important}.preview-area{overflow:visible!important}}
+/* iOS: export is only opened after the file exists. */
+.file-download-bar{position:fixed;z-index:1000;left:12px;right:12px;bottom:15px;background:#172335;border:1px solid #5686b9;box-shadow:0 8px 30px #0009;border-radius:14px;padding:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#fff}
+.file-download-bar span{font-weight:700;flex:1 1 100%;overflow-wrap:anywhere}
+.file-download-bar a{background:#367adf;color:#fff!important;padding:12px 17px;border-radius:9px;text-decoration:none;font-weight:700;flex:1;text-align:center}
+.file-download-bar button{background:#334155;color:#fff;border:1px solid #64748b;padding:12px;border-radius:9px}
+.file-download-bar small{color:#bdcadd;flex-basis:100%}
+@media print{.file-download-bar{display:none!important}}
