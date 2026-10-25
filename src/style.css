@@ -15,3 +15,31 @@
 .quick-ref-help{display:block}
 @media(max-width:650px){.signed-input{gap:3px}.signed-input .minus-key{flex-basis:29px;font-size:21px}.signed-input input{padding:7px 3px;font-size:14px}.quick-ref-buttons button{flex:1 1 29%;padding:10px 6px}}
 @media print{.quick-ref{display:none!important}}
+
+/* FÖYMATİK KOYU TEMA — baskı föyleri beyaz kalır */
+@media screen {
+ :root{color-scheme:dark;background:#0b1018;color:#edf3fa}
+ body,.app,.main,.content,.workspace,.editor,.preview_area{background:#0b1018;color:#edf3fa}
+ .sidebar{background:#0d1725;color:#e2edf9}
+ .topbar,.action-bar{background:#131e2d;color:#e3ebf5;border-color:#2c3a4b}
+ .template-card,.home-bottom,.record,.empty,.entry-panel,.help-panel,.secondary,.icon-button{background:#172232;color:#e6eef9;border-color:#344459;box-shadow:none}
+ .template-card:hover,.secondary:hover{background:#203148}
+ .intro h1,.section-heading h1,.heading-line h1,.panel-title h2,.device-head h2,.device-title h3,.measurement-heading h3,.template-card strong{color:#f1f6fc}
+ .intro p,.section-heading p,.muted,.template-card>span,.record small,.field label{color:#aabbd0}
+ .tile-end,.entry-table,.entry-table-row,.entry-table-header,.device-tabs{border-color:#344459}
+ .entry-table-header{background:#243146;color:#cbd9ea}
+ .entry-table-row{background:#172232;color:#e6eef9}
+ .field input,.field textarea,.entry-table-row input,input,textarea,select{background:#101b2a;color:#f2f7ff;border-color:#3a4c62}
+ input::placeholder,textarea::placeholder{color:#92a4ba}
+ .device-tabs button{background:#182638;color:#c9d9ed;border-color:#36475c}
+ .device-tabs button.active,.device-tabs button.selected{background:#28538a;color:#fff;border-color:#5295e6}
+ .quick-ref{background:#172b40;border-color:#3a648b}
+ .quick-ref-title{color:#eaf3ff}
+ .quick-ref-title small,.quick-ref-help{color:#adc4db}
+ .quick-ref-buttons button{background:#203e5e;color:#f0f7ff;border-color:#507da7}
+ .signed-input .minus-key{background:#26486b;color:#fff;border-color:#5482b2}
+ /* Yazdırılacak sayfaya koyu tema uygulanmaz. */
+ .paper,.paper *{color:revert-layer}
+ .paper{background:#fff;color:#151515;color-scheme:light}
+ .paper input,.paper textarea{background:#fff;color:#111}
+}
