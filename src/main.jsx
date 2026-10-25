@@ -1,6 +1,6 @@
 import React, {useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {makeExportFiles} from './foyExport.js';
+import {makeExportFiles,renderFoyPages} from './foyExport.js';
 import ExcelJS from 'exceljs';
 
 import {FileSpreadsheet, Image as ImageIcon, Printer, Plus, Trash2, ArrowLeft, ArrowRight, Save, ClipboardList, Thermometer, Scale, Layers3, Layers2, FolderOpen, Download, ChevronRight, Copy, AlertCircle, CheckCircle2, Settings2, Pencil, FileText} from 'lucide-react';
@@ -25,20 +25,14 @@ const dateText=s=>s?s.split('-').reverse().join('.'):'';
 const labelOf=(o,k)=>o?.[k]||'';
 
 function Sheet({record,previewRef}){
- const scale=record.type==='scale';const cfg=TYPES[record.type];const col=cfg.cols;
- const pages=[];for(let i=0;i<record.devices.length;i+=col* (scale?1: (record.type==='laser'?2:3)))pages.push(record.devices.slice(i,i+col*(scale?1:(record.type==='laser'?2:3))));
- return <div className="sheets" ref={previewRef}>{pages.map((batch,pageNo)=><div className={'paper '+(scale?'paper-scale':'')} key={pageNo}>
-   <header className="paper-head"><strong>{(record.title||cfg.name).toLocaleUpperCase('tr-TR')}</strong><span>{dateText(record.date)}{record.customer?' · '+record.customer:''}</span></header>
-   {scale?batch.map((d,i)=><ScaleSheet key={d.id} d={d} record={record}/>):<div className="paper-grid" style={{'--columns':col}}>{batch.map((d,i)=><InstrumentSheet key={d.id} d={d} record={record} laser={record.type==='laser'}/>)}</div>}
-   <footer className="paper-foot"><span>Ölçüm kayıt föyü · {pageNo+1} / {pages.length}</span><span>{record.operator?'Ölçümü yapan: '+record.operator:''}</span></footer>
- </div>)}</div>
+ // Aynı Canvas sayfaları iPhone önizlemesinde ve PDF/PNG çıktısında kullanılır.
+ const images=React.useMemo(()=>renderFoyPages(record).map(c=>c.toDataURL('image/png')),[record]);
+ return <div className="shared-sheet-preview" ref={previewRef}>{images.map((src,i)=><img key={i} className="shared-sheet-page" src={src} alt={`Föy sayfası ${i+1}`} />)}</div>;
 }
-function InstrumentSheet({d,record,laser}){const rows=d.measurements||[];return <div className="instrument"><table className="head-table"><tbody>{[['Tarih',dateText(d.date||record.date)],['Varlık No',d.asset],['Referans',d.reference||record.reference],['Kal. Yapan',d.operator||record.operator]].map(([a,b])=><tr key={a}><th>{a}</th><td>{b||' '}</td></tr>)}</tbody></table><div className="sheet-note">{d.notes||' '}</div><table className="measurement-table"><thead><tr><th>Referans Değer</th><th>Test Cihazı<br/>Gösterge Değeri</th></tr></thead><tbody>{rows.map((r,i)=><React.Fragment key={i}>{laser&&i===2&&<tr><th colSpan="2" className="laser-row">LAZER</th></tr>}<tr><td>{r.ref||' '}</td><td>{r.reading||' '}</td></tr></React.Fragment>)}</tbody></table></div>}
-function ScaleSheet({d,record}){const names=['Min','25%','50%','75%','100%'];return <div className="scale-sheet"><h2>TERAZİ KALİBRASYON FORMU</h2><table className="scale-info"><tbody><tr><th>Varlık No:</th><td>{d.asset}</td><th>Kullanım Yeri:</th><td>{d.location}</td></tr><tr><th>Marka / Modeli:</th><td>{d.brand}</td><th>Sıcaklık / Nem:</th><td>{record.notes}</td></tr><tr><th>Çalışma Aralığı:</th><td>{d.range}</td><th>Seri No:</th><td>{d.serial}</td></tr><tr><th>Varlık Çözünürlüğü:</th><td>{d.resolution}</td><th>Ölçümü Yapan:</th><td>{d.operator||record.operator}</td></tr><tr><th>Kalibrasyon Tarihi:</th><td>{dateText(d.date||record.date)}</td><th>Yapılan İş / Açıklama:</th><td>{d.notes}</td></tr></tbody></table><div className="section-spacer">ETİKET KONTROLÜ / AÇIKLAMALAR</div><div className="section-label">KALİBRASYONDA KULLANILAN REFERANSLAR: {d.reference||record.reference}</div><div className="section-label">GÖSTERGE HATASI TESTİ</div><table><thead><tr><th>Yük</th><th>Uygulanan Yük, L [g]</th><th>Gösterge Değeri I [g]</th><th>Ayar Sonrası I [g]</th></tr></thead><tbody>{names.map((n,i)=><tr key={n}><th>{n}</th><td>{d.loads?.[i]}</td><td>{d.measurements?.[i]?.reading}</td><td>{d.adjusted?.[i]}</td></tr>)}</tbody></table><div className="section-label">TEKRARLANABİLİRLİK TESTİ</div><table><thead><tr><th>Uygulanan Yük, L [g]</th><th>Ölçüm</th><th>Gösterge Değeri I [g]</th></tr></thead><tbody>{d.repeat?.map((val,i)=><tr key={i}><td>{d.repeatLoad||''}</td><th>{i+1}</th><td>{val}</td></tr>)}</tbody></table><div className="section-label">MERKEZ DIŞI YÜKLEME TESTİ</div><table><thead><tr><th>Uygulanan Yük, L [g]</th><th>Konum</th><th>Gösterge Değeri I [g]</th></tr></thead><tbody>{d.eccentric?.map((val,i)=><tr key={i}><td>{d.eccentricLoad||''}</td><th>{i+1}</th><td>{val}</td></tr>)}</tbody></table></div>}
 function Input({label,value,onChange,placeholder='',type='text'}){return <label className="field"><span>{label}</span><input type={type} value={value||''} onChange={e=>onChange(e.target.value)} placeholder={placeholder}/></label>}
 function App(){const [records,setRecords]=useState(storageRead);const [active,setActive]=useState(null);const [screen,setScreen]=useState('home');const [tab,setTab]=useState(0);const [view,setView]=useState('edit');const [notice,setNotice]=useState('');const [busy,setBusy]=useState(false);const [readyFile,setReadyFile]=useState(null);const [selectedRow,setSelectedRow]=useState(0);const sheetRef=useRef(null);
  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(records))}catch{setNotice('Cihaz depolaması dolu; yedek almanız önerilir.')}},[records]);
- useEffect(()=>{if(view!=='preview'||screen!=='editor'||!sheetRef.current)return;const sheets=sheetRef.current;const container=sheets.closest('.preview-area');if(!container)return;const fit=()=>{const width=container.clientWidth-4;sheets.style.zoom=String(Math.min(1,Math.max(.25,width/794)));};fit();const ro=new ResizeObserver(fit);ro.observe(container);return()=>{ro.disconnect();sheets.style.zoom='1';};},[view,screen,active]);
+ 
  const current=records.find(r=>r.id===active);
  const flash=msg=>{setNotice(msg);setTimeout(()=>setNotice(''),4000)};
  const open=r=>{setReadyFile(null);setActive(r.id);setTab(0);setView('edit');setScreen('editor')};
