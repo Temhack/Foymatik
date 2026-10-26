@@ -1,11 +1,12 @@
 import {jsPDF} from 'jspdf';
+import {normalizeRecord} from './deviceHelpers.js';
 
 // Native Canvas: no DOM screenshot, external images, fonts or popups.
 const W=794,H=1123;
 const safe=s=>String(s||'foy').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-').slice(0,55);
 const txt=v=>String(v??'');
 const date=s=>s&&String(s).includes('-')?String(s).split('-').reverse().join('.'):txt(s);
-const configs={two:{cols:2,rows:2},three:{cols:3,rows:2},laser:{cols:3,rows:4},scale:{cols:1,rows:5}};
+const configs={two:{cols:2,rows:2},three:{cols:3,rows:3},laser:{cols:3,rows:4},scale:{cols:1,rows:5}};
 function canvasPage(){const canvas=document.createElement('canvas');canvas.width=W*2;canvas.height=H*2;const c=canvas.getContext('2d');if(!c)throw Error('Canvas kullanılamıyor');c.scale(2,2);c.fillStyle='#fff';c.fillRect(0,0,W,H);c.fillStyle='#111';c.strokeStyle='#151515';c.lineWidth=1.25;return {canvas,c}}
 function text(c,s,x,y,size=13,bold=false,max=500,align='left'){c.font=`${bold?'bold ':''}${size}px Arial, sans-serif`;c.fillStyle='#101010';c.textAlign=align;c.textBaseline='middle';let line=txt(s);while(c.measureText(line).width>max&&line.length>3)line=line.slice(0,-2);c.fillText(line,x,y);c.textAlign='left'}
 function line(c,x,y,w,h=0){c.beginPath();c.moveTo(x,y);c.lineTo(x+w,y+h);c.stroke()}
@@ -36,9 +37,10 @@ function wrapLines(c,value,maxWidth,fontSize=12,maxLines=4){
   return result;
 }
 function instrument(c,d,rec,x,y,w,h,laser){
+  const triple=rec.type==='three';
   const compact=!laser && h<260;
-  const metaH=compact?24:36;
-  const noteH=compact?56:(!laser?Math.max(20,h-144-60-((d.measurements||[]).length*44)):20);
+  const metaH=compact?(triple?23:24):36;
+  const noteH=compact?(triple?34:56):(!laser?Math.max(20,h-144-60-((d.measurements||[]).length*44)):20);
   const label=w*.40;
   const meta=[['Tarih',date(d.date||rec.date)],['Varlık No',d.asset],['Referans',d.reference||rec.reference],['Kal. Yapan',d.operator||rec.operator]];
   meta.forEach((r,i)=>{cell(c,r[0],x,y+i*metaH,label,metaH,{bold:true,size:compact?10:10});cell(c,r[1],x+label,y+i*metaH,w-label,metaH,{size:compact?11:12})});
@@ -57,7 +59,7 @@ function instrument(c,d,rec,x,y,w,h,laser){
   let yy=headY+headerH;
   const rows=d.measurements||[];
   const lazerBar=laser&&rows.length>2?28:0;
-  const rh=compact?22:Math.min(44,Math.max(22,(y+h-yy-lazerBar)/Math.max(1,rows.length)));
+  const rh=compact?(triple?(y+h-yy-lazerBar)/Math.max(1,rows.length):22):Math.min(44,Math.max(22,(y+h-yy-lazerBar)/Math.max(1,rows.length)));
   rows.forEach((r,i)=>{if(laser&&i===2){cell(c,'LAZER',x,yy,w,28,{center:true,bold:true,size:12});yy+=28;}
     cell(c,r.ref,x,yy,w*.48,rh,{center:true,size:compact?12:13});
     cell(c,r.reading,x+w*.48,yy,w*.52,rh,{center:true,size:compact?12:13});yy+=rh;
@@ -66,8 +68,9 @@ function instrument(c,d,rec,x,y,w,h,laser){
 }
 function scalePage(c,d,rec){const x=55,w=W-110; text(c,'TERAZİ KALİBRASYON FORMU',W/2,112,20,true,600,'center');let y=146;const info=[['Varlık No',d.asset,'Kullanım Yeri',d.location],['Marka / Model',d.brand,'Seri No',d.serial],['Çalışma Aralığı',d.range,'Çözünürlük',d.resolution],['Kalibrasyon Tarihi',date(d.date||rec.date),'Ölçümü Yapan',d.operator||rec.operator]];info.forEach(r=>{const a=w*.23,b=w*.27;cell(c,r[0],x,y,a,33,{bold:true,size:11});cell(c,r[1],x+a,y,b,33);cell(c,r[2],x+a+b,y,a,33,{bold:true,size:11});cell(c,r[3],x+a+b+a,y,b,33);y+=33});cell(c,'Açıklama: '+txt(d.notes),x,y,w,64);y+=77;cell(c,'KALİBRASYONDA KULLANILAN REFERANSLAR: '+txt(d.reference||rec.reference),x,y,w,38,{bold:true,size:11});y+=50;cell(c,'GÖSTERGE HATASI TESTİ',x,y,w,33,{center:true,bold:true});y+=33;const ws=[100,215,185,w-500];['Seviye','Uygulanan Yük','Gösterge Değeri','Ayar Sonrası'].forEach((n,i)=>cell(c,n,x+ws.slice(0,i).reduce((a,b)=>a+b,0),y,ws[i],35,{bold:true,size:11}));y+=35;['Min','25%','50%','75%','100%'].forEach((name,i)=>{const r=(d.measurements||[])[i]||{};[name,d.loads?.[i]||r.ref,r.reading,d.adjusted?.[i]].forEach((v,j)=>cell(c,v,x+ws.slice(0,j).reduce((a,b)=>a+b,0),y,ws[j],38,{size:12}));y+=38});y+=13;cell(c,'TEKRARLANABİLİRLİK TESTİ — Yük: '+txt(d.repeatLoad),x,y,w,33,{center:true,bold:true});y+=33;(d.repeat||[]).slice(0,5).forEach((v,i)=>{cell(c,'Ölçüm '+(i+1),x,y,180,33);cell(c,v,x+180,y,w-180,33);y+=33});y+=13;cell(c,'MERKEZ DIŞI YÜKLEME TESTİ — Yük: '+txt(d.eccentricLoad),x,y,w,33,{center:true,bold:true});y+=33;(d.eccentric||[]).slice(0,5).forEach((v,i)=>{cell(c,'Konum '+(i+1),x,y,180,33);cell(c,v,x+180,y,w-180,33);y+=33});}
 export function renderFoyPages(record){
+ record=normalizeRecord(record);
  const cfg=configs[record.type]||configs.two;
- // 2'li/3'lü föylerde A4 üzerinde dört satır; 2'li föyde 8 cihaz tek sayfa.
+ // 2'li/3'lü föylerde A4 üzerinde dört cihaz sırası; 3'lü föyde üç ölçüm satırı bulunur.
  const per=record.type==='scale'?1:cfg.cols*(record.type==='laser'?2:4);
  const batches=[];
  for(let i=0;i<record.devices.length;i+=per)batches.push(record.devices.slice(i,i+per));
