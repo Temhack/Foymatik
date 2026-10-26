@@ -60,3 +60,14 @@
 .preview-area .shared-sheet-page{display:block!important;width:100%!important;max-width:794px!important;height:auto!important;aspect-ratio:794/1123!important;object-fit:contain!important;background:#fff!important;box-shadow:0 4px 16px #0003!important}
 @media(max-width:700px){.preview-area{overflow-x:hidden!important}.preview-area .shared-sheet-preview{max-width:100%!important;padding:0!important}.preview-area .shared-sheet-page{max-width:100%!important}}
 @media print{.shared-sheet-page{width:210mm!important;max-width:none!important;box-shadow:none!important;page-break-after:always!important}}
+
+/* Seri numaralı varlıkları, manuel girişe dokunmadan topluca ekleme. */
+.series-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:17px}
+.series-toolbar>span{font-size:11px;color:#8398ab}
+.series-toggle{display:inline-flex;align-items:center;gap:8px;border:1px solid #526b85;background:#1d3046;color:#dbe9fa;border-radius:9px;padding:10px 13px;font-size:12px;font-weight:750}
+.series-toggle.is-on{border-color:#3b8ce8;background:#234a76;color:#fff}
+.series-panel{margin-top:12px;padding:16px;border:1px solid #42617f;border-radius:11px;background:#142a40}
+.series-fields{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}
+.series-panel p{font-size:11px;line-height:1.6;color:#adc4db;margin:12px 0}
+@media(max-width:650px){.series-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.series-fields .field:first-child{grid-column:span 2}.series-toolbar{align-items:flex-start;flex-direction:column;gap:6px}}
+@media print{.series-toolbar,.series-panel{display:none!important}}
