@@ -71,3 +71,10 @@
 .series-panel p{font-size:11px;line-height:1.6;color:#adc4db;margin:12px 0}
 @media(max-width:650px){.series-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.series-fields .field:first-child{grid-column:span 2}.series-toolbar{align-items:flex-start;flex-direction:column;gap:6px}}
 @media print{.series-toolbar,.series-panel{display:none!important}}
+
+/* Önceki cihaz referanslarını kopyala + terazi için otomatik yük bilgisi */
+.reference-copy-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0 16px}
+.reference-copy-bar>span{color:#8da3b9;font-size:11px;line-height:1.5}
+.reference-copy-bar .secondary:disabled{opacity:.45;cursor:not-allowed}
+.scale-auto-hint{color:#b2c8dc;background:#1a3047;border:1px solid #345578;border-radius:9px;padding:10px 12px;font-size:12px;line-height:1.5;margin:9px 0 12px}
+@media(max-width:700px){.reference-copy-bar{flex-direction:column;align-items:flex-start}.reference-copy-bar .secondary{white-space:normal;text-align:left}}
