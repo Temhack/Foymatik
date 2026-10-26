@@ -66,7 +66,108 @@ function instrument(c,d,rec,x,y,w,h,laser){
   });
   if(yy<y+h-0.5)rect(c,x,yy,w,y+h-yy);
 }
-function scalePage(c,d,rec){const x=55,w=W-110; text(c,'TERAZİ KALİBRASYON FORMU',W/2,112,20,true,600,'center');let y=146;const info=[['Varlık No',d.asset,'Kullanım Yeri',d.location],['Marka / Model',d.brand,'Seri No',d.serial],['Çalışma Aralığı',d.range,'Çözünürlük',d.resolution],['Kalibrasyon Tarihi',date(d.date||rec.date),'Ölçümü Yapan',d.operator||rec.operator]];info.forEach(r=>{const a=w*.23,b=w*.27;cell(c,r[0],x,y,a,33,{bold:true,size:11});cell(c,r[1],x+a,y,b,33);cell(c,r[2],x+a+b,y,a,33,{bold:true,size:11});cell(c,r[3],x+a+b+a,y,b,33);y+=33});cell(c,'Açıklama: '+txt(d.notes),x,y,w,64);y+=77;cell(c,'KALİBRASYONDA KULLANILAN REFERANSLAR: '+txt(d.reference||rec.reference),x,y,w,38,{bold:true,size:11});y+=50;cell(c,'GÖSTERGE HATASI TESTİ',x,y,w,33,{center:true,bold:true});y+=33;const ws=[100,215,185,w-500];['Seviye','Uygulanan Yük','Gösterge Değeri','Ayar Sonrası'].forEach((n,i)=>cell(c,n,x+ws.slice(0,i).reduce((a,b)=>a+b,0),y,ws[i],35,{bold:true,size:11}));y+=35;['Min','25%','50%','75%','100%'].forEach((name,i)=>{const r=(d.measurements||[])[i]||{};[name,d.loads?.[i]||r.ref,r.reading,d.adjusted?.[i]].forEach((v,j)=>cell(c,v,x+ws.slice(0,j).reduce((a,b)=>a+b,0),y,ws[j],38,{size:12}));y+=38});y+=13;cell(c,'TEKRARLANABİLİRLİK TESTİ — Yük: '+txt(d.repeatLoad),x,y,w,33,{center:true,bold:true});y+=33;(d.repeat||[]).slice(0,5).forEach((v,i)=>{cell(c,'Ölçüm '+(i+1),x,y,180,33);cell(c,v,x+180,y,w-180,33);y+=33});y+=13;cell(c,'MERKEZ DIŞI YÜKLEME TESTİ — Yük: '+txt(d.eccentricLoad),x,y,w,33,{center:true,bold:true});y+=33;(d.eccentric||[]).slice(0,5).forEach((v,i)=>{cell(c,'Konum '+(i+1),x,y,180,33);cell(c,v,x+180,y,w-180,33);y+=33});}
+function scalePage(c,d,rec){
+  // Tek cihaz = tam 1 A4, etiket alanı gerçek etiketi sonradan yapıştırmak için boş.
+  const x=48, w=W-96, right=x+w;
+  c.lineWidth=1.1;
+  const titleY=44,titleH=39;
+  cell(c,'TERAZİ KALİBRASYON FORMU',x,titleY,w,titleH,{bold:true,center:true,size:20});
+  let y=titleY+titleH;
+  const rowH=31;
+  const leftLabel=148,leftValue=255,rightLabel=121,rightValue=w-leftLabel-leftValue-rightLabel;
+  const info=[
+    ['Varlık No:',d.asset,'Kullanım Yeri:',d.location],
+    ['Marka / Modeli:',d.brand,'Sıcaklık / Nem:',rec.notes],
+    ['Çalışma Aralığı:',d.range,'Seri No:',d.serial],
+    ['Varlık Çözünürlüğü:',d.resolution,'Ölçümü Yapan:',d.operator||rec.operator],
+    ['Kalibrasyon Tarihi:',date(d.date||rec.date),'Yapılan İş / Açıklama:','']
+  ];
+  info.forEach((r,i)=>{
+    cell(c,r[0],x,y,leftLabel,rowH,{bold:true,size:11});
+    cell(c,r[1],x+leftLabel,y,leftValue,rowH,{size:13});
+    if(i===4){cell(c,r[2],x+leftLabel+leftValue,y,rightLabel+rightValue,rowH,{bold:true,center:true,size:11});}
+    else{
+      cell(c,r[2],x+leftLabel+leftValue,y,rightLabel,rowH,{bold:true,size:11});
+      cell(c,r[3],x+leftLabel+leftValue+rightLabel,y,rightValue,rowH,{size:12});
+    }
+    y+=rowH;
+  });
+  const labelW=leftLabel+leftValue, noteW=w-labelW, noteH=105;
+  rect(c,x,y,labelW,noteH);
+  text(c,'Etiket Kontrolü:',x+7,y+17,12,true,labelW-14);
+  // DİKKAT: Etiket kutusunun kalanına hiçbir metin, resim veya örnek etiket çizilmez.
+  rect(c,x+labelW,y,noteW,noteH);
+  const noteText=wrapLines(c,d.notes||'',noteW-18,12,6);
+  noteText.forEach((t,i)=>text(c,t,x+labelW+9,y+19+i*16,12,false,noteW-18));
+  y+=noteH;
+  const band=(label)=>{
+    c.fillStyle='#f2f3f4'; c.fillRect(x,y,w,26); c.fillStyle='#111';
+    cell(c,label,x,y,w,26,{center:true,bold:true,size:13});
+    y+=26;
+  };
+  band('KALİBRASYONDA KULLANILAN REFERANSLAR');
+  cell(c,d.reference||rec.reference,x,y,w,32,{size:12});y+=32;
+  band('GÖSTERGE HATASI TESTİ');
+  // Başlıktaki ölçüm türleri orijinal örneğe uygun şekilde üç sütun.
+  const widths=[216,242,w-458];
+  const xs=[x,x+widths[0],x+widths[0]+widths[1]];
+  ['Uygulanan Yük, L  [g]','Gösterge Değeri  I  [g]','Ayar Sonrası  I  [g]']
+    .forEach((v,i)=>cell(c,v,xs[i],y,widths[i],31,{center:true,bold:true,size:11}));
+  y+=31;
+  const levels=['Min','25%','50%','75%','100%'];
+  levels.forEach((name,i)=>{
+    const r=(d.measurements||[])[i]||{};
+    const rowY=y+i*31;
+    cell(c,`${name}   ${d.loads?.[i]||''}`,xs[0],rowY,widths[0],31,{size:12});
+    cell(c,r.reading||'',xs[1],rowY,widths[1],31,{size:13});
+    cell(c,d.adjusted?.[i]||'',xs[2],rowY,widths[2],31,{size:13});
+  });
+  y+=5*31;
+  band('TEKRARLANABİLİRLİK TESTİ');
+  const left=w*.45, testRight=w-left;
+  rect(c,x,y,left,195);
+  text(c,'Uygulanan Yük, L  [g]',x+left/2,y+63,13,true,left-18,'center');
+  text(c,'0,5 Max ≤ L ≤ Max',x+left/2,y+88,12,true,left-18,'center');
+  text(c,d.repeatLoad||'',x+left/2,y+121,16,false,left-20,'center');
+  cell(c,'Gösterge Değeri  I  [g]',x+left,y,testRight,31,{center:true,bold:true,size:12});
+  (d.repeat||[]).slice(0,5).forEach((v,i)=>cell(c,v,x+left,y+31+i*32.8,testRight,32.8,{size:13}));
+  y+=195;
+  band('MERKEZ DIŞI YÜKLEME TESTİ');
+  const loadW=218,measureW=186,diagramW=w-loadW-measureW;
+  cell(c,'Uygulanan Yük, L  [g]',x,y,loadW,31,{bold:true,center:true,size:11});
+  cell(c,'Gösterge Değeri  I  [g]',x+loadW,y,measureW,31,{bold:true,center:true,size:11});
+  cell(c,'Konum',x+loadW+measureW,y,diagramW,31,{bold:true,center:true,size:12});
+  y+=31;
+  const eccH=5*36;
+  rect(c,x,y,loadW,eccH);
+  text(c,'Uygulanan Yük, L  [g]',x+loadW/2,y+56,12,true,loadW-16,'center');
+  text(c,'L > Max / 3',x+loadW/2,y+80,12,true,loadW-16,'center');
+  text(c,d.eccentricLoad||'',x+loadW/2,y+116,16,false,loadW-16,'center');
+  (d.eccentric||[]).slice(0,5).forEach((v,i)=>{
+    cell(c,String(i+1),x+loadW,y+i*36,30,36,{center:true,bold:true,size:12});
+    cell(c,v,x+loadW+30,y+i*36,measureW-30,36,{size:13});
+  });
+  const diagX=x+loadW+measureW;
+  rect(c,diagX,y,diagramW,eccH);
+  // Beş konumlu yükleme çizimi: dikdörtgen ve dairesel terazi yüzeyleri.
+  const bx=diagX+16,by=y+48,bw=132,bh=86,cx=bx+bw/2,cy=by+bh/2;
+  rect(c,bx,by,bw,bh);
+  line(c,bx,by,bw,bh);line(c,bx+bw,by,-bw,bh);
+  line(c,cx,by,0,bh);line(c,bx,cy,bw,0);
+  c.fillStyle='#fff';c.beginPath();c.arc(cx,cy,5,0,Math.PI*2);c.fill();c.stroke();
+  const pts=[[cx,cy],[bx+29,by+24],[bx+29,by+62],[bx+103,by+24],[bx+103,by+62]];
+  pts.forEach(([xx,yy],i)=>{c.beginPath();c.arc(xx,yy,3.5,0,2*Math.PI);c.fill();c.stroke();
+    text(c,String(i+1),xx+(i===0?9: i===1||i===2?9:-15),yy+(i===0?-12:12),10,true,20);
+  });
+  const circleX=diagX+diagramW-49,circleY=cy,radius=39;
+  c.beginPath();c.ellipse(circleX,circleY,37,46,0,0,Math.PI*2);c.stroke();
+  line(c,circleX,circleY-46,0,92);
+  line(c,circleX-37,circleY,74,0);
+  [[-22,-27],[-22,27],[22,-27],[22,27]].forEach(([dx,dy])=>line(c,circleX,circleY,dx,dy));
+  text(c,'1',circleX,circleY-7,10,true,12,'center');
+  [[-21,-20,3],[-21,24,2],[21,-20,4],[21,24,5]].forEach(([dx,dy,n])=>text(c,String(n),circleX+dx,circleY+dy,10,true,10,'center'));
+  // Son satır y = 1073; A4 kağıdın altından 50px güvenli pay.
+}
 export function renderFoyPages(record){
  record=normalizeRecord(record);
  const cfg=configs[record.type]||configs.two;
@@ -77,12 +178,12 @@ export function renderFoyPages(record){
  return batches.map((batch,page)=>{
   const {canvas,c}=canvasPage();
   const compact=record.type==='two'||record.type==='three';
-  text(c,txt(record.title||'Kalibrasyon Föyü').toLocaleUpperCase('tr-TR'),W/2,compact?28:57,compact?15:19,true,710,'center');
-  text(c,date(record.date)+(record.customer?' · '+record.customer:''),W-44,compact?46:88,compact?10:11,false,350,'right');
-  line(c,42,compact?59:106,W-84);
   if(record.type==='scale'){
    scalePage(c,batch[0],record);
   }else{
+   text(c,txt(record.title||'Kalibrasyon Föyü').toLocaleUpperCase('tr-TR'),W/2,compact?28:57,compact?15:19,true,710,'center');
+   text(c,date(record.date)+(record.customer?' · '+record.customer:''),W-44,compact?46:88,compact?10:11,false,350,'right');
+   line(c,42,compact?59:106,W-84);
    const left=43,top=compact?73:135,gap=compact?8:10;
    const cw=(W-86-gap*(cfg.cols-1))/cfg.cols;
    const blockH=compact?233:415;
@@ -91,9 +192,11 @@ export function renderFoyPages(record){
     instrument(c,d,record,left+col*(cw+gap),top+row*(blockH+gap),cw,blockH,record.type==='laser');
    });
   }
-  line(c,42,H-67,W-84);
-  text(c,`Ölçüm kayıt föyü · ${page+1} / ${batches.length}`,44,H-48,10);
-  text(c,txt(record.operator?'Ölçümü yapan: '+record.operator:''),W-44,H-48,10,false,300,'right');
+  if(record.type!=='scale'){
+   line(c,42,H-67,W-84);
+   text(c,`Ölçüm kayıt föyü · ${page+1} / ${batches.length}`,44,H-48,10);
+   text(c,txt(record.operator?'Ölçümü yapan: '+record.operator:''),W-44,H-48,10,false,300,'right');
+  }
   return canvas;
  });
 }
