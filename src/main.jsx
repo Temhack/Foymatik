@@ -1,0 +1,144 @@
+import React, {useEffect,useRef,useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import {makeExportFiles,renderFoyPages} from './foyExport.js';
+import ExcelJS from 'exceljs';
+import {normalizeRecord, inferSeries, buildSeries, isEmptyDevice, updateScaleLoads, suggestedScaleLoads, copyReferenceFields} from './deviceHelpers.js';
+
+import {FileSpreadsheet, Image as ImageIcon, Printer, Plus, Trash2, ArrowLeft, ArrowRight, Save, ClipboardList, Thermometer, Scale, Layers3, Layers2, FolderOpen, Download, ChevronRight, Copy, AlertCircle, CheckCircle2, Settings2, Pencil, FileText} from 'lucide-react';
+import './style.css';
+
+const KEY='foymatik_records_v1';
+const TYPES={
+  two:{label:'2’li Föy',name:'2’li ölçüm föyü',cols:2,rows:2,icon:Layers2,description:'İki cihaz yan yana, standart ölçüm girişleri'},
+  three:{label:'3’lü Föy',name:'3’lü ölçüm föyü',cols:3,rows:3,icon:Layers3,description:'Üç cihaz yan yana, çoklu ölçüm sayfası'},
+  laser:{label:'Lazer Termometre',name:'Lazer termometre kalibrasyon föyü',cols:3,rows:4,icon:Thermometer,description:'İki normal ölçüm + iki lazer ölçümü'},
+  scale:{label:'Terazi Kalibrasyon',name:'Terazi kalibrasyon föyü',cols:1,rows:5,icon:Scale,description:'Gösterge hatası, tekrarlanabilirlik, merkez dışı yükleme'}
+};
+const uid=()=>crypto?.randomUUID?.()??String(Date.now()+Math.random());
+const today=()=>new Date().toLocaleDateString('en-CA');
+const blankRows=n=>Array.from({length:n},()=>({ref:'',reading:''}));
+const blankDevice=type=>({id:uid(),asset:'',reference:'',operator:'',date:'',brand:'',serial:'',location:'',range:'',resolution:'',notes:'',measurements:blankRows(TYPES[type].rows),adjusted:['','','','',''],repeat:['','','','',''],eccentric:['','','','',''],loads:['','','','','']});
+const fresh=type=>({id:uid(),type,title:TYPES[type].name,date:today(),operator:'',operatorLabel:'Kal. Yapan',reference:'',customer:'',notes:'',devices:[blankDevice(type)],modified:Date.now()});
+function storageRead(){try{const a=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(a)?a.map(normalizeRecord):[]}catch{return []}}
+function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000)}
+const safeName=s=>String(s||'foy').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-').slice(0,55);
+const dateText=s=>s?s.split('-').reverse().join('.'):'';
+const labelOf=(o,k)=>o?.[k]||'';
+
+function Sheet({record,previewRef}){
+ // Aynı Canvas sayfaları iPhone önizlemesinde ve PDF/PNG çıktısında kullanılır.
+ const images=React.useMemo(()=>renderFoyPages(record).map(c=>c.toDataURL('image/png')),[record]);
+ return <div className="shared-sheet-preview" ref={previewRef}>{images.map((src,i)=><img key={i} className="shared-sheet-page" src={src} alt={`Föy sayfası ${i+1}`} />)}</div>;
+}
+function Input({label,value,onChange,placeholder='',type='text'}){return <label className="field"><span>{label}</span><input type={type} value={value||''} onChange={e=>onChange(e.target.value)} placeholder={placeholder}/></label>}
+function App(){const [records,setRecords]=useState(storageRead);const [active,setActive]=useState(null);const [screen,setScreen]=useState('home');const [tab,setTab]=useState(0);const [view,setView]=useState('edit');const [notice,setNotice]=useState('');const [busy,setBusy]=useState(false);const [readyFile,setReadyFile]=useState(null);const [selectedRow,setSelectedRow]=useState(0);const [seriesEnabled,setSeriesEnabled]=useState(false);const [seriesPrefix,setSeriesPrefix]=useState('IST-MT');const [seriesStart,setSeriesStart]=useState('11');const [seriesEnd,setSeriesEnd]=useState('20');const [bulkText,setBulkText]=useState('');const sheetRef=useRef(null);
+ useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(records))}catch{setNotice('Cihaz depolaması dolu; yedek almanız önerilir.')}},[records]);
+ 
+ const current=records.find(r=>r.id===active);
+ const flash=msg=>{setNotice(msg);setTimeout(()=>setNotice(''),4000)};
+ const open=r=>{setReadyFile(null);setActive(r.id);setTab(0);setView('edit');setSeriesEnabled(false);setScreen('editor')};
+ const create=t=>{const r=fresh(t);setRecords(v=>[r,...v]);open(r)};
+ const patch=p=>setRecords(v=>v.map(r=>r.id===active?{...r,...p,modified:Date.now()}:r));
+ const devPatch=(i,p)=>{if(!current)return;patch({devices:current.devices.map((d,j)=>i===j?{...d,...p}:d)})};
+ const devArray=(i,k,j,val)=>{const d=current.devices[i];const arr=[...(d[k]||[])];arr[j]=val;devPatch(i,{[k]:arr})};
+ const toggleMinus=(i,j,k)=>{const val=current.devices[i].measurements[j][k]||'';measure(i,j,k,val.startsWith('-')?val.slice(1):'-'+val)};
+ const measure=(i,j,k,val)=>{const d=current.devices[i];const a=[...d.measurements];a[j]={...a[j],[k]:val};devPatch(i,{measurements:a})};
+ const changeRange=value=>{
+   const previous=current.devices[tab];
+   const updated=updateScaleLoads(previous.loads,previous.range,value);
+   devPatch(tab,{range:value,...(updated?{loads:updated}:{})});
+ };
+ const copyPreviousReferences=()=>{
+   if(!current || tab<1)return;
+   const source=current.devices[tab-1];
+   const target=current.devices[tab];
+   const existing=current.type==='scale'
+     ? [target.reference,...(target.loads||[]),target.repeatLoad,target.eccentricLoad]
+     : [target.reference,...(target.measurements||[]).map(x=>x.ref)];
+   if(existing.some(x=>String(x||'').trim()) && !confirm('Bu cihazın mevcut referans/yük alanları önceki cihazdakilerle değişecek. Gösterge değerleri korunacak. Devam edilsin mi?'))return;
+   const copied=copyReferenceFields(target,source,current.type);
+   devPatch(tab,copied);
+   flash(`Cihaz ${tab} referansları kopyalandı. Gösterge değerleri korunuyor.`);
+ };
+ const add=()=>{patch({devices:[...current.devices,blankDevice(current.type)]});setTab(current.devices.length)};
+ const remove=()=>{if(current.devices.length===1){flash('En az bir cihaz bulunmalı.');return}if(!confirm('Bu cihazı ve ölçümlerini silmek istiyor musun?'))return;patch({devices:current.devices.filter((_,i)=>i!==tab)});setTab(Math.max(0,tab-1))};
+ const toggleSeries=()=>{
+   if(!seriesEnabled){
+     const suggestion=inferSeries(current?.devices?.[tab]?.asset);
+     setSeriesPrefix(suggestion.prefix);setSeriesStart(suggestion.start);
+     setSeriesEnd(String(Number(suggestion.start)+9).padStart(suggestion.start.length,'0'));
+   }
+   setSeriesEnabled(v=>!v);
+ };
+ const generateSeries=()=>{
+   if(!current)return;
+   try{
+     const reusable=current.devices.length===1 && isEmptyDevice(current.devices[0]);
+     const retained=reusable?[]:current.devices;
+     const names=buildSeries({prefix:seriesPrefix,start:seriesStart,end:seriesEnd,existingNames:retained.map(d=>d.asset)});
+     if(!names.length){flash('Bu aralıktaki tüm cihazlar zaten mevcut.');return;}
+     const newDevices=names.map(name=>({...blankDevice(current.type),asset:name}));
+     patch({devices:[...retained,...newDevices]});
+     setTab(retained.length);
+     setSelectedRow(0);
+     flash(`${names.length} cihaz eklendi. Var olan kayıtlar korundu.`);
+   }catch(e){flash(e.message);}
+ };
+ const importBulkMeasurements=()=>{
+   if(!current||current.type==='scale'){flash('Toplu ölçüm girişi terazi föyünde kullanılamaz.');return;}
+   const lines=bulkText.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+   if(!lines.length){flash('Önce cihaz ve ölçüm satırlarını yapıştır.');return;}
+   const reusable=current.devices.length===1 && isEmptyDevice(current.devices[0]);
+   const retained=reusable?[]:current.devices;
+   const used=new Set(retained.map(d=>String(d.asset||'').trim().toLocaleLowerCase('tr-TR')));
+   const added=[];
+   for(let index=0;index<lines.length;index++){
+     const parts=lines[index].split(/[\s;]+/).filter(Boolean);
+     const asset=parts.shift();
+     if(!asset){flash(`${index+1}. satırda cihaz kodu bulunamadı.`);return;}
+     const key=asset.toLocaleLowerCase('tr-TR');
+     if(used.has(key)){flash(`${index+1}. satırdaki ${asset} zaten föyde var. Yinelenen cihaz eklenmedi.`);return;}
+     const expected=TYPES[current.type].rows*2;
+     if(parts.length!==expected){
+       flash(`${index+1}. satır (${asset}): tam olarak ${expected} sayısal değer gerekli.`);return;
+     }
+     if(parts.some(v=>!/^[-+]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(v))){flash(`${index+1}. satırda sayı olarak okunamayan bir değer var.`);return;}
+     const values=parts.map(v=>v.replace(',','.'));
+     const d={...blankDevice(current.type),asset};
+     d.measurements=d.measurements.map((r,i)=>({ref:values[i*2],reading:values[i*2+1]}));
+     used.add(key);added.push(d);
+   }
+   if(!added.length){flash('Eklenecek geçerli cihaz bulunamadı.');return;}
+   patch({devices:[...retained,...added]});setTab(retained.length);setSelectedRow(0);setBulkText('');
+   flash(`${added.length} cihaz ve ölçüm değerleri föye eklendi.`);
+ };
+ const duplicate=()=>{const c={...current,id:uid(),title:current.title+' (kopya)',modified:Date.now(),devices:current.devices.map(d=>({...d,id:uid()}))};setRecords(v=>[c,...v]);open(c)};
+ // iPhone'da boş sekme açmıyoruz. Hazır dosyaya kullanıcı ayrı bir dokunuşla erişiyor.
+ const showFile=(blob,name,mime)=>{const url=URL.createObjectURL(blob);setReadyFile(prev=>{if(prev?.url)URL.revokeObjectURL(prev.url);return {url,name,mime}});flash('Dosya hazır. Aç / Kaydet bağlantısına dokun.');};
+ async function generate(kind){if(!current||busy)return;setBusy(true);setReadyFile(null);try{
+  const files=await makeExportFiles(current,kind);
+  if(!files.length)throw new Error('Çıktı oluşturulamadı');
+  showFile(files[0].blob,files[0].name,files[0].mime);
+  if(files.length>1)flash('İlk sayfa hazır. Diğer sayfalar için PDF kullanabilirsin.');
+ }catch(e){console.error('Çıktı hatası:',e);flash('Çıktı oluşturulamadı: '+(e?.message||'Bilinmeyen hata'));}finally{setBusy(false)}}
+ const exportPng=()=>generate('png');
+ const exportPdf=()=>generate('pdf');
+ async function exportExcel(){if(!current)return;setBusy(true);try{const wb=new ExcelJS.Workbook();wb.creator='Föymatik';const ws=wb.addWorksheet('Kalibrasyon', {views:[{state:'frozen',ySplit:2}]});ws.columns=[{header:'Föy',key:'form',width:23},{header:'Tarih',key:'date',width:16},{header:'Varlık No',key:'asset',width:20},{header:'Referans',key:'refDevice',width:22},{header:current.operatorLabel||'Kal. Yapan',key:'operator',width:23},{header:'Test',key:'test',width:26},{header:'Sıra',key:'order',width:10},{header:'Referans / Yük',key:'reference',width:20},{header:'Gösterge Değeri',key:'reading',width:23},{header:'Ayar Sonrası',key:'after',width:20}];const push=(d,test,i,ref,reading,after='')=>ws.addRow({form:TYPES[current.type].label,date:dateText(d.date||current.date),asset:d.asset,refDevice:d.reference||current.reference,operator:d.operator||current.operator,test,order:i+1,reference:ref,reading,after});current.devices.forEach(d=>{if(current.type==='scale'){d.measurements.forEach((r,i)=>push(d,'Gösterge hatası',i,d.loads?.[i]||'',r.reading,d.adjusted?.[i]));d.repeat.forEach((val,i)=>push(d,'Tekrarlanabilirlik',i,d.repeatLoad||'',val));d.eccentric.forEach((val,i)=>push(d,'Merkez dışı',i,d.eccentricLoad||'',val))}else d.measurements.forEach((r,i)=>push(d,current.type==='laser'&&i>=2?'LAZER':'Ölçüm',i,r.ref,r.reading))});ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};ws.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF213954'}};ws.autoFilter={from:'A1',to:'J1'};const buf=await wb.xlsx.writeBuffer();showFile(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),safeName(current.title)+'.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}catch(e){console.error(e);flash('Excel dosyası oluşturulamadı.')}finally{setBusy(false)}}
+ const print=()=>exportPdf();
+ const device=current?.devices[Math.min(tab,(current?.devices.length||1)-1)];
+ return <div className="app"><aside className="sidebar"><div className="brand"><div className="brand-icon"><ClipboardList size={23}/></div><div><b>Föymatik</b><small>KALİBRASYON FÖY SİSTEMİ</small></div></div><nav><button className={screen==='home'?'selected':''} onClick={()=>setScreen('home')}><Layers3 size={19}/> Yeni föy</button><button className={screen==='records'?'selected':''} onClick={()=>setScreen('records')}><FolderOpen size={19}/> Kayıtlı föyler <span className="count">{records.length}</span></button></nav><div className="sidebar-bottom"><CheckCircle2 size={16}/> Veriler bu cihazda saklanır</div></aside>
+ <main className="main"><div className="topbar"><span>Föymatik <ChevronRight size={14}/> {screen==='home'?'Yeni föy':screen==='records'?'Kayıtlı föyler':current?.title||'Föy'}</span><span className="save-pill"><CheckCircle2 size={15}/> Otomatik kayıt açık</span></div>
+ {screen==='home'&&<section className="content"><div className="intro"><span className="eyebrow">KALİBRASYON İŞ AKIŞI</span><h1>Hangi föyü hazırlıyoruz?</h1><p>Ölçüm türünü seç, cihaz değerlerini gir, föyünü hazır olarak indir.</p></div><div className="template-grid">{Object.entries(TYPES).map(([key,t])=>{const Icon=t.icon;return <button key={key} className="template-card" onClick={()=>create(key)}><div className={'tile-icon '+key}><Icon size={28}/></div><strong>{t.label}</strong><span>{t.description}</span><div className="tile-end">Föy oluştur <ArrowRight size={18}/></div></button>})}</div><div className="home-bottom"><div><h3>Yarım kalan ölçümün mü var?</h3><p>Kaydetmeyi beklemene gerek yok. Her giriş otomatik saklanır.</p></div><button className="secondary" onClick={()=>setScreen('records')}>Kayıtlara git <ChevronRight size={16}/></button></div></section>}
+ {screen==='records'&&<section className="content"><div className="section-heading"><div><span className="eyebrow">ÖLÇÜM ARŞİVİ</span><h1>Kayıtlı föyler</h1><p>Buradaki taslaklar yalnızca kullandığın tarayıcıda saklanır.</p></div><button className="primary" onClick={()=>setScreen('home')}><Plus size={17}/> Yeni föy</button></div>{!records.length?<div className="empty">Henüz kayıt yok. İlk föyünü oluşturarak başla.</div>:<div className="record-list">{records.map(r=><div className="record" key={r.id}><div className="record-icon"><FileText size={23}/></div><div className="record-main"><b>{r.title}</b><small>{r.devices.length} cihaz · {dateText(r.date)} · Son değişiklik: {new Date(r.modified).toLocaleString('tr-TR')}</small></div><button className="secondary" onClick={()=>open(r)}>Devam et <ChevronRight size={16}/></button><button title="Sil" className="icon-button danger" onClick={()=>{if(confirm('Föy kalıcı olarak silinsin mi?'))setRecords(v=>v.filter(x=>x.id!==r.id))}}><Trash2 size={19}/></button></div>)}</div>}</section>}
+ {screen==='editor'&&current&&<section className="workspace"><div className="editor-heading"><button className="back" onClick={()=>setScreen('records')}><ArrowLeft size={17}/> Föylerim</button><div className="heading-line"><div><span className="eyebrow">{TYPES[current.type].label.toLocaleUpperCase('tr-TR')}</span><h1>{current.title}</h1><span className="muted">{current.devices.length} cihaz · otomatik kaydediliyor</span></div><button className="secondary" onClick={duplicate}><Copy size={16}/> Kopyala</button></div></div><div className="editor-tabs"><button className={view==='edit'?'active':''} onClick={()=>setView('edit')}><Pencil size={16}/> Veri girişi</button><button className={view==='preview'?'active':''} onClick={()=>setView('preview')}><FileText size={16}/> Föy önizleme</button></div>
+ {view==='edit'?<div className="editor-layout"><div className="entry-panel"><div className="panel-title"><Settings2 size={18}/><h2>Genel föy bilgileri</h2></div><div className="fields two-col"><Input label="Föy başlığı" value={current.title} onChange={v=>patch({title:v})}/><Input type="date" label="Kalibrasyon tarihi" value={current.date} onChange={v=>patch({date:v})}/><div className="operator-field"><Input label="Ölçümü yapan" value={current.operator} onChange={v=>patch({operator:v})} placeholder="Ad soyad"/>{current.type!== 'scale'&&<button type="button" className="secondary small operator-toggle" onClick={()=>patch({operatorLabel:(current.operatorLabel||'Kal. Yapan')==='Kal. Yapan'?'Val. Yapan':'Kal. Yapan'})}>{(current.operatorLabel||'Kal. Yapan')==='Kal. Yapan'?'Kal. Yapan':'Val. Yapan'} · Değiştir</button>}</div><Input label="Ortak referans" value={current.reference} onChange={v=>patch({reference:v})} placeholder="Örn. KER 15/1"/><Input label="Müşteri / birim" value={current.customer} onChange={v=>patch({customer:v})} placeholder="Opsiyonel"/><Input label={current.type==='scale'?'Sıcaklık / nem':'Genel not'} value={current.notes} onChange={v=>patch({notes:v})} placeholder="Opsiyonel"/></div><div className="panel-divider"/><div className="device-head"><div><h2>Cihazlar <span className="mini-count">{current.devices.length}</span></h2><p>Her cihazın ölçümleri ayrı saklanır.</p></div><button className="secondary small" onClick={add}><Plus size={16}/> Cihaz ekle</button></div><div className="series-toolbar"><button type="button" className={`series-toggle ${seriesEnabled?'is-on':''}`} aria-expanded={seriesEnabled} onClick={toggleSeries}><Settings2 size={16}/> Seri cihaz ekleme: {seriesEnabled?'Açık':'Kapalı'}</button><span>Numaralı cihazları tek işlemde ekle.</span></div>{seriesEnabled&&<div className="series-panel"><div className="series-fields"><Input label="Cihaz adı ön eki" value={seriesPrefix} onChange={setSeriesPrefix} placeholder="Örn. ist-mt"/><Input label="Başlangıç no" value={seriesStart} onChange={setSeriesStart} placeholder="11"/><Input label="Bitiş no (dahil)" value={seriesEnd} onChange={setSeriesEnd} placeholder="25"/></div><p>Örnek: {seriesPrefix||'ist-mt'}{seriesStart||'11'}, {seriesPrefix||'ist-mt'}{String((Number(seriesStart)||11)+1)} … {seriesPrefix||'ist-mt'}{seriesEnd||'25'}. Mevcut cihazlar ve ölçümleri silinmez; aynı adlar tekrar eklenmez.</p><button type="button" className="primary small" onClick={generateSeries}><Plus size={16}/> Aralıktaki cihazları oluştur</button></div>}{current.type!=='scale'&&<div className="bulk-panel"><h3>Toplu ölçüm girişi</h3><p>Her satıra cihaz kodu ve ölçümleri sırayla yaz. Ondalık sayılarda virgül veya nokta kullanabilirsin. Örnek: <code>IST-MT256 -18.00 -17.00 90.00 89.55</code></p><textarea rows={5} value={bulkText} onChange={e=>setBulkText(e.target.value)} placeholder={'IST-MT256 -18.00 -17.00 90.00 89.55\nIST-MT257 4.70 5.40 13.50 14.10'} /><small>{'Bu föy için her cihazda '+(TYPES[current.type].rows*2)+' sayı gerekir: her ölçümün referansı ve gösterge değeri.'}</small><button type="button" className="primary small" onClick={importBulkMeasurements}><Plus size={16}/> Satırları cihazlara ekle</button></div>}<div className="device-tabs">{current.devices.map((d,i)=><button key={d.id} className={tab===i?'active':''} onClick={()=>setTab(i)}>{d.asset||`Cihaz ${i+1}`}</button>)}</div>
+ <div className="device-title"><h3>Cihaz {tab+1} bilgileri</h3><button className="text-danger" onClick={remove}><Trash2 size={15}/> Cihazı sil</button></div>
+ <div className="reference-copy-bar"><button type="button" className="secondary small" disabled={tab===0} onClick={copyPreviousReferences}><Copy size={15}/> Önceki cihazın referanslarını kopyala</button><span>{tab===0?'Önce bir cihaz daha ekle.':'Sadece referans ve uygulanan yükler kopyalanır; ölçüm sonuçları korunur.'}</span></div><div className="fields two-col"><Input label="Varlık no *" value={device.asset} onChange={v=>devPatch(tab,{asset:v})} placeholder="Örn. IST-MT 649"/><Input label="Referans (cihaza özel)" value={device.reference} onChange={v=>devPatch(tab,{reference:v})} placeholder="Ortak referansı kullanır"/><Input label="Ölçümü yapan (cihaza özel)" value={device.operator} onChange={v=>devPatch(tab,{operator:v})} placeholder="Genel alanı kullanır"/><Input type="date" label="Tarih (cihaza özel)" value={device.date} onChange={v=>devPatch(tab,{date:v})}/>{current.type==='scale'&&<><Input label="Marka / Model" value={device.brand} onChange={v=>devPatch(tab,{brand:v})}/><Input label="Seri no" value={device.serial} onChange={v=>devPatch(tab,{serial:v})}/><Input label="Kullanım yeri" value={device.location} onChange={v=>devPatch(tab,{location:v})}/><Input label="Çalışma aralığı" value={device.range} onChange={changeRange} placeholder="Örn. 15 kg veya 6/15 kg"/><Input label="Çözünürlük" value={device.resolution} onChange={v=>devPatch(tab,{resolution:v})}/></>}</div><label className="field" style={{marginTop:14}}><span>Not / açıklama</span><textarea value={device.notes||''} rows={2} placeholder="Yapılan işlem, cihaz açıklaması..." onChange={e=>devPatch(tab,{notes:e.target.value})}/></label>
+ {current.type!=='scale'?<><div className="measurement-heading"><h3>Ölçüm değerleri</h3><span>Ondalık ayırıcı olarak , veya . kullanabilirsin.</span></div><div className="entry-table"><div className="entry-table-header"><span>Ölçüm</span><span>Referans değer</span><span>Gösterge değeri</span></div>{device.measurements.map((r,i)=><React.Fragment key={i}>{current.type==='laser'&&i===2&&<div className="entry-section">LAZER ÖLÇÜMLERİ</div>}<div className="entry-table-row"><span>{i+1}. ölçüm</span><div className="signed-input"><input type="text" inputMode="decimal" placeholder="Örn. 90,04" value={r.ref} onFocus={()=>setSelectedRow(i)} onChange={e=>measure(tab,i,'ref',e.target.value)}/><button type="button" className="minus-key" aria-label="Referans değerinin işaretini değiştir" onClick={()=>{setSelectedRow(i);toggleMinus(tab,i,'ref')}}>−</button></div><div className="signed-input"><input type="text" inputMode="decimal" placeholder="Örn. 90,5" value={r.reading} onChange={e=>measure(tab,i,'reading',e.target.value)}/><button type="button" className="minus-key" aria-label="Gösterge değerinin işaretini değiştir" onClick={()=>toggleMinus(tab,i,'reading')}>−</button></div></div></React.Fragment>)}</div><div className="quick-ref"><div className="quick-ref-title">Hazır referans değerleri <small>Hedef: {selectedRow+1}. ölçümün referansı</small></div><div className="quick-ref-buttons">{['-18,00','90,00','15,00','1,00','5,00'].map(v=><button type="button" key={v} onClick={()=>measure(tab,Math.min(selectedRow,device.measurements.length-1),'ref',v)}>{v}</button>)}</div><small className="quick-ref-help">Başka satıra yazmak için önce o satırdaki referans alanına dokun. − düğmesi değerin işaretini değiştirir.</small></div></>:<><div className="measurement-heading"><h3>Gösterge hatası testi</h3></div>
+ <div className="scale-auto-hint">{suggestedScaleLoads(device.range)?'Çalışma aralığının en büyük kapasitesine göre %25, %50, %75 ve %100 yükler gram cinsinden otomatik hesaplandı. Min alanını kendin doldurabilirsin. Manuel değiştirdiğin yük değerleri korunur.':'Otomatik yük hesaplamak için çalışma aralığını birimle gir: 15 kg, 6/15 kg veya 15000 g. Min yükünü kendin yaz.'}</div>
+ <div className="entry-table scale-entry"><div className="entry-table-header"><span>Yük</span><span>Uygulanan (g)</span><span>Gösterge (g)</span><span>Ayar sonrası (g)</span></div>{['Min','25%','50%','75%','100%'].map((name,i)=><div className="entry-table-row" key={i}><span>{name}</span><input inputMode="decimal" value={device.loads?.[i]||''} onChange={e=>devArray(tab,'loads',i,e.target.value)}/><input inputMode="decimal" value={device.measurements?.[i]?.reading||''} onChange={e=>measure(tab,i,'reading',e.target.value)}/><input inputMode="decimal" value={device.adjusted?.[i]||''} onChange={e=>devArray(tab,'adjusted',i,e.target.value)}/></div>)}</div><div className="measurement-heading"><h3>Tekrarlanabilirlik testi</h3></div><Input label="Uygulanan yük (g)" value={device.repeatLoad} onChange={v=>devPatch(tab,{repeatLoad:v})}/><div className="five-inputs">{device.repeat.map((v,i)=><Input key={i} label={`${i+1}. ölçüm`} value={v} onChange={x=>devArray(tab,'repeat',i,x)}/>)}</div><div className="measurement-heading"><h3>Merkez dışı yükleme testi</h3></div><Input label="Uygulanan yük (g)" value={device.eccentricLoad} onChange={v=>devPatch(tab,{eccentricLoad:v})}/><div className="five-inputs">{device.eccentric.map((v,i)=><Input key={i} label={`Konum ${i+1}`} value={v} onChange={x=>devArray(tab,'eccentric',i,x)}/>)}</div></>}
+ <div className="entry-bottom"><button className="secondary" onClick={add}><Plus size={17}/> Başka cihaz ekle</button><button className="primary" onClick={()=>setView('preview')}>Föyü görüntüle <ArrowRight size={17}/></button></div></div><div className="help-panel"><div className="help-icon"><Save size={20}/></div><h3>Ölçümlerin güvende</h3><p>Yazdığın her değer bu tarayıcının cihaz hafızasına anında kaydedilir.</p><div className="tip"><CheckCircle2 size={16}/> Ekran kilitlense de geri dönebilirsin.</div><div className="tip"><AlertCircle size={16}/> Tarayıcı verilerini silersen kayıtlar silinebilir. İş bitince Excel yedeği al.</div></div></div>:<div className="preview-area"><div className="preview-message"><FileText size={18}/> Yazdırılabilir föy önizlemesi <span>{current.devices.length} cihaz</span></div><Sheet record={current} previewRef={sheetRef}/></div>}
+ <div className="action-bar"><div className="status"><CheckCircle2 size={16}/> Tüm değişiklikler kaydedildi</div><div className="export-actions"><button disabled={busy} className="secondary" onClick={exportExcel}><FileSpreadsheet size={17}/> Excel</button><button disabled={busy} className="secondary" onClick={exportPng}><ImageIcon size={17}/> PNG fotoğraf</button><button disabled={busy} className="primary" onClick={print}><Printer size={17}/> PDF oluştur</button></div></div></section>}
+ {readyFile&&<div className="file-download-bar" role="status"><span>✓ {readyFile.name} hazır</span><a href={readyFile.url} download={readyFile.name} target="_blank" rel="noopener">Dosyayı Aç / Kaydet</a><button type="button" onClick={()=>{URL.revokeObjectURL(readyFile.url);setReadyFile(null)}}>Kapat</button><small>iPhone'da açılırsa Paylaş → Dosyalara Kaydet seç.</small></div>}
+ </main>{notice&&<div className="toast">{notice}</div>}</div>}
+createRoot(document.getElementById('root')).render(<App/>);
