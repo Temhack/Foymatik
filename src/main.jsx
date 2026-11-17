@@ -19,7 +19,7 @@ const today=()=>new Date().toLocaleDateString('en-CA');
 const blankRows=n=>Array.from({length:n},()=>({ref:'',reading:''}));
 const blankDevice=type=>({id:uid(),asset:'',reference:'',operator:'',date:'',brand:'',serial:'',location:'',range:'',resolution:'',notes:'',measurements:blankRows(TYPES[type].rows),adjusted:['','','','',''],repeat:['','','','',''],eccentric:['','','','',''],loads:['','','','','']});
 const fresh=type=>({id:uid(),type,title:TYPES[type].name,date:today(),operator:'',operatorLabel:'Kal. Yapan',reference:'',customer:'',notes:'',devices:[blankDevice(type)],modified:Date.now()});
-function storageRead(){try{const a=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(a)?a.map(normalizeRecord):[]}catch{return []}}
+function storageRead(){try{const a=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(a)?a.map(x=>{const r=normalizeRecord(x);return {...r,devices:(r.devices||[]).map(d=>({...d,asset:String(d.asset||'').toUpperCase()}))}}):[]}catch{return []}}
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000)}
 const safeName=s=>String(s||'foy').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-').slice(0,55);
 const dateText=s=>s?s.split('-').reverse().join('.'):'';
@@ -39,7 +39,7 @@ function App(){const [records,setRecords]=useState(storageRead);const [active,se
  const open=r=>{setReadyFile(null);setActive(r.id);setTab(0);setView('edit');setSeriesEnabled(false);setScreen('editor')};
  const create=t=>{const r=fresh(t);setRecords(v=>[r,...v]);open(r)};
  const patch=p=>setRecords(v=>v.map(r=>r.id===active?{...r,...p,modified:Date.now()}:r));
- const devPatch=(i,p)=>{if(!current)return;patch({devices:current.devices.map((d,j)=>i===j?{...d,...p}:d)})};
+ const devPatch=(i,p)=>{if(!current)return;const update={...p};if(Object.prototype.hasOwnProperty.call(update,'asset'))update.asset=String(update.asset||'').toUpperCase();patch({devices:current.devices.map((d,j)=>i===j?{...d,...update}:d)})};
  const devArray=(i,k,j,val)=>{const d=current.devices[i];const arr=[...(d[k]||[])];arr[j]=val;devPatch(i,{[k]:arr})};
  const toggleMinus=(i,j,k)=>{const val=current.devices[i].measurements[j][k]||'';measure(i,j,k,val.startsWith('-')?val.slice(1):'-'+val)};
  const measure=(i,j,k,val)=>{const d=current.devices[i];const a=[...d.measurements];a[j]={...a[j],[k]:val};devPatch(i,{measurements:a})};
@@ -77,7 +77,7 @@ function App(){const [records,setRecords]=useState(storageRead);const [active,se
      const retained=reusable?[]:current.devices;
      const names=buildSeries({prefix:seriesPrefix,start:seriesStart,end:seriesEnd,existingNames:retained.map(d=>d.asset)});
      if(!names.length){flash('Bu aralıktaki tüm cihazlar zaten mevcut.');return;}
-     const newDevices=names.map(name=>({...blankDevice(current.type),asset:name}));
+     const newDevices=names.map(name=>({...blankDevice(current.type),asset:String(name).toUpperCase()}));
      patch({devices:[...retained,...newDevices]});
      setTab(retained.length);
      setSelectedRow(0);
@@ -100,7 +100,7 @@ function App(){const [records,setRecords]=useState(storageRead);const [active,se
 
    for(let index=0;index<lines.length;index++){
      const parts=lines[index].split(/[\s;]+/).filter(Boolean);
-     const asset=parts.shift();
+     const asset=String(parts.shift()||'').toUpperCase();
      if(!asset){flash(`${index+1}. satırda cihaz kodu bulunamadı.`);return;}
 
      const key=asset.toLocaleLowerCase('tr-TR');
