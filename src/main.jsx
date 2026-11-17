@@ -85,32 +85,59 @@ function App(){const [records,setRecords]=useState(storageRead);const [active,se
    }catch(e){flash(e.message);}
  };
  const importBulkMeasurements=()=>{
-   if(!current||current.type==='scale'){flash('Toplu ölçüm girişi terazi föyünde kullanılamaz.');return;}
+   if(!current||current.type==='scale'){
+     flash('Toplu ölçüm girişi terazi föyünde kullanılamaz.');
+     return;
+   }
+
    const lines=bulkText.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
    if(!lines.length){flash('Önce cihaz ve ölçüm satırlarını yapıştır.');return;}
+
    const reusable=current.devices.length===1 && isEmptyDevice(current.devices[0]);
    const retained=reusable?[]:current.devices;
    const used=new Set(retained.map(d=>String(d.asset||'').trim().toLocaleLowerCase('tr-TR')));
    const added=[];
+
    for(let index=0;index<lines.length;index++){
      const parts=lines[index].split(/[\s;]+/).filter(Boolean);
      const asset=parts.shift();
      if(!asset){flash(`${index+1}. satırda cihaz kodu bulunamadı.`);return;}
+
      const key=asset.toLocaleLowerCase('tr-TR');
-     if(used.has(key)){flash(`${index+1}. satırdaki ${asset} zaten föyde var. Yinelenen cihaz eklenmedi.`);return;}
-     const expected=TYPES[current.type].rows*2;
-     if(parts.length!==expected){
-       flash(`${index+1}. satır (${asset}): tam olarak ${expected} sayısal değer gerekli.`);return;
+     if(used.has(key)){
+       flash(`${index+1}. satırdaki ${asset} zaten föyde var. Yinelenen cihaz eklenmedi.`);
+       return;
      }
-     if(parts.some(v=>!/^[-+]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(v))){flash(`${index+1}. satırda sayı olarak okunamayan bir değer var.`);return;}
+
+     const expected=TYPES[current.type].rows*2;
+     if(parts.length<1 || parts.length>expected){
+       flash(`${index+1}. satır (${asset}): 1 ile ${expected} arasında ölçüm değeri girebilirsin.`);
+       return;
+     }
+     if(parts.some(v=>!/^[-+]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(v))){
+       flash(`${index+1}. satırda sayı olarak okunamayan bir değer var.`);
+       return;
+     }
+
      const values=parts.map(v=>v.replace(',','.'));
      const d={...blankDevice(current.type),asset};
-     d.measurements=d.measurements.map((r,i)=>({ref:values[i*2],reading:values[i*2+1]}));
-     used.add(key);added.push(d);
+     // Girilmeyen alanlar boş kalır; çiftlerin ilk sayısı referans,
+     // ikinci sayısı gösterge değeridir. Tek sayı girilirse yalnız referans dolar.
+     d.measurements=d.measurements.map((r,i)=>({
+       ref:values[i*2] ?? '',
+       reading:values[i*2+1] ?? ''
+     }));
+
+     used.add(key);
+     added.push(d);
    }
+
    if(!added.length){flash('Eklenecek geçerli cihaz bulunamadı.');return;}
-   patch({devices:[...retained,...added]});setTab(retained.length);setSelectedRow(0);setBulkText('');
-   flash(`${added.length} cihaz ve ölçüm değerleri föye eklendi.`);
+   patch({devices:[...retained,...added]});
+   setTab(retained.length);
+   setSelectedRow(0);
+   setBulkText('');
+   flash(`${added.length} cihaz başarıyla eklendi.`);
  };
  const duplicate=()=>{const c={...current,id:uid(),title:current.title+' (kopya)',modified:Date.now(),devices:current.devices.map(d=>({...d,id:uid()}))};setRecords(v=>[c,...v]);open(c)};
  // iPhone'da boş sekme açmıyoruz. Hazır dosyaya kullanıcı ayrı bir dokunuşla erişiyor.
