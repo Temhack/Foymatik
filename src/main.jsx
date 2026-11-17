@@ -110,8 +110,8 @@ function App(){const [records,setRecords]=useState(storageRead);const [active,se
      }
 
      const expected=TYPES[current.type].rows*2;
-     if(parts.length<1 || parts.length>expected){
-       flash(`${index+1}. satır (${asset}): 1 ile ${expected} arasında ölçüm değeri girebilirsin.`);
+     if(parts.length>expected){
+       flash(`${index+1}. satır (${asset}): En fazla ${expected} ölçüm değeri girebilirsin.`);
        return;
      }
      if(parts.some(v=>!/^[-+]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(v))){
@@ -121,8 +121,8 @@ function App(){const [records,setRecords]=useState(storageRead);const [active,se
 
      const values=parts.map(v=>v.replace(',','.'));
      const d={...blankDevice(current.type),asset};
-     // Girilmeyen alanlar boş kalır; çiftlerin ilk sayısı referans,
-     // ikinci sayısı gösterge değeridir. Tek sayı girilirse yalnız referans dolar.
+     // Sadece cihaz kodu girilirse tüm ölçüm alanları boş kalır.
+     // Değer girilmişse çiftlerin ilk sayısı referans, ikinci sayısı gösterge değeridir.
      d.measurements=d.measurements.map((r,i)=>({
        ref:values[i*2] ?? '',
        reading:values[i*2+1] ?? ''
